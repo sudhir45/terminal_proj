@@ -2,4 +2,4 @@
 
 A powerful and user‑friendly terminal-based project 
 
-[Terminal](https://github.com/sudhir45/terminal_proj)
+[Terminal](https://sudhir45.github.io/terminal_proj/)
