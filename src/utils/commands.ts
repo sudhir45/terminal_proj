@@ -1,15 +1,20 @@
 import packageJson from '../../package.json';
 import themes from '../../themes.json';
-import { history } from '../stores/history';
+import { history as commandOutputHistory, enteredCommandHistory } from '../stores/history'; // Renamed 'history' to avoid conflict
+import { get } from 'svelte/store';
 import { theme } from '../stores/theme';
 import { printSlowly } from './printSlowly';
 import { currentDirectory, getNodeByPath, changeDirectory, Directory, FileSystemNode } from './filesystem';
+import { startGame as startHangmanGame, guessLetter as guessHangmanLetter, getDisplay as getHangmanDisplay, type HangmanState } from './games/hangman';
 
-const hostname = window.location.hostname;
+const startTime = Date.now(); // For uptime calculation
+const hostname = window.location.hostname; // Already present
+
+let currentHangmanGame: HangmanState | null = null;
 
 export const commands: Record<string, (args: string[]) => Promise<string> | string> = {
   //help: () => 'Available commands: ' + Object.keys(commands).join('\n'),
-  hostname: () => hostname,
+  hostname: () => hostname, // Already present
   whoami: () => 'guest',
   date: () => new Date().toLocaleString(),
   vi: () => `why use vi? try 'emacs'`,
@@ -117,9 +122,33 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
   },
 
   clear: () => {
-    history.set([]);
+    commandOutputHistory.set([]); // Use the renamed import
 
     return '';
+  },
+
+  history: (args: string[]): string => {
+    if (args[0] === '-c') {
+      enteredCommandHistory.set([]);
+      // localStorage interaction is handled by the store's subscription in history.ts
+      return ''; // Or "History cleared." - tests will check specific message if any.
+    }
+
+    const commandsList = get(enteredCommandHistory);
+    if (commandsList.length === 0) {
+      return 'No history yet.';
+    }
+
+    // Determine padding: max 3 digits, or width of largest number
+    const maxDigits = String(commandsList.length).length;
+    const padding = Math.max(2, maxDigits); // Ensure at least 2 digits for padding, e.g. " 1" vs "10"
+
+    return commandsList
+      .map((cmd, index) => {
+        const lineNumber = String(index + 1).padStart(padding, ' ');
+        return `${lineNumber}  ${cmd}`;
+      })
+      .join('\n');
   },
 
   quote: async (): Promise<string> => {
@@ -256,6 +285,28 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
     return getPathString(currentDirectory);
   },
 
+  cat: async (args: string[]): Promise<string> => {
+    if (args.length === 0) {
+      return 'cat: usage: cat file [...]';
+    }
+
+    const outputs: string[] = [];
+    for (const path of args) {
+      const node = getNodeByPath(path, currentDirectory); // currentDirectory is imported
+      if (node === null) {
+        outputs.push(`cat: ${path}: No such file or directory`);
+      } else if (node.type === 'directory') {
+        outputs.push(`cat: ${node.name}: Is a directory`);
+      } else if (node.type === 'file') {
+        // Ensure content is not undefined, default to empty string if it is
+        outputs.push(node.content || '');
+      }
+    }
+    // Join file contents with newline, and error messages also get newlines.
+    // If a file content itself has multiple lines, they are preserved.
+    return outputs.join('\n');
+  },
+
   weather: async (args: string[]) => {
     const city = args.join('+');
 
@@ -269,6 +320,108 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
   },
   exit: () => {
     return 'Please close the tab to exit.';
+  },
+
+  hangman: (args: string[]): string => {
+    const action = args[0]?.toLowerCase();
+
+    if (!action || action === "start") {
+      currentHangmanGame = startHangmanGame();
+      return getHangmanDisplay(currentHangmanGame);
+    }
+
+    if (!currentHangmanGame) {
+      return "No game in progress. Type 'hangman start' to begin.";
+    }
+
+    if (currentHangmanGame.status === 'won' || currentHangmanGame.status === 'lost') {
+      // Allow starting a new game even if one just finished.
+      // The previous "if (!action || action === "start")" handles this.
+      // So, if we are here, it means an action other than "start" was attempted on a finished game.
+      return `Game over. The word was: ${currentHangmanGame.word}. Type 'hangman start' to play again.`;
+    }
+
+    if (action.length === 1 && /^[a-z]$/.test(action)) {
+      currentHangmanGame = guessHangmanLetter(action, currentHangmanGame);
+      // If game just ended with this guess, the message in lastMessage will indicate win/loss.
+      return getHangmanDisplay(currentHangmanGame);
+    }
+
+    return `Invalid command or guess: '${args.join(" ")}'. Type a single letter to guess, or 'hangman start' for a new game.`;
+  },
+
+  sysinfo: (): string => {
+    const asciiArt = [
+      "TTTTT WW   WW",
+      "  T   WW   WW",
+      "  T   WW W WW",
+      "  T   WWWWW WW",
+      "  T   WW   WW",
+    ];
+
+    // Gather information
+    let osInfo = "Web Browser";
+    try {
+      if (navigator.userAgentData && navigator.userAgentData.platform) {
+        osInfo = navigator.userAgentData.platform;
+      } else if (navigator.platform) {
+        osInfo = navigator.platform;
+      }
+    } catch (e) { /* ignore if not available */ }
+
+    const hostInfo = hostname; // Already defined globally in this file
+    const kernelInfo = "Svelte/TS";
+    const versionInfo = packageJson.version;
+    const currentTheme = get(theme);
+    const themeInfo = currentTheme.name;
+    const shellInfo = "TermyWeb";
+
+    let resolutionInfo = "N/A";
+    try {
+        resolutionInfo = `${window.innerWidth}x${window.innerHeight} (Viewport)`;
+        // Or use screen: `${window.screen.width}x${window.screen.height}` (Screen)
+    } catch (e) { /* ignore */ }
+
+    let terminalInfo = "N/A";
+    try {
+        terminalInfo = document.title || "TermyWeb";
+    } catch (e) { /* ignore */ }
+
+    // Calculate uptime
+    const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+    const upMinutes = Math.floor(uptimeSeconds / 60);
+    const upHours = Math.floor(upMinutes / 60);
+    let uptimeInfo = "";
+    if (upHours > 0) uptimeInfo += `${upHours}h `;
+    if (upMinutes > 0) uptimeInfo += `${upMinutes % 60}m `;
+    uptimeInfo += `${uptimeSeconds % 60}s`;
+
+    const info = [
+      `OS: ${osInfo}`,
+      `Host: ${hostInfo}`,
+      `Kernel: ${kernelInfo}`,
+      `Version: ${versionInfo}`,
+      `Uptime: ${uptimeInfo}`,
+      `Shell: ${shellInfo}`,
+      `Theme: ${themeInfo}`,
+      `Resolution: ${resolutionInfo}`,
+      `Terminal: ${terminalInfo}`,
+    ];
+
+    // Formatting: find max length of ASCII art line for padding
+    const maxArtWidth = Math.max(...asciiArt.map(line => line.length));
+    const padding = "  "; // Space between art and text
+
+    let output = "";
+    const maxLines = Math.max(asciiArt.length, info.length);
+
+    for (let i = 0; i < maxLines; i++) {
+      const artLine = asciiArt[i] || "";
+      const infoLine = info[i] || "";
+      output += `${artLine.padEnd(maxArtWidth)}${padding}${infoLine}\n`;
+    }
+
+    return output.trimEnd(); // Remove trailing newline
   },
 
   banner: () => `
