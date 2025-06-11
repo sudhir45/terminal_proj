@@ -1,2 +1,5 @@
+# terminal_proj
 
-A terminal style website
+A powerful and user‑friendly terminal-based project 
+
+[Terminal](https://github.com/sudhir45/terminal_proj)
