@@ -10,13 +10,10 @@
     "email": "sudhirdubey558@gmail.com"
   },
   "homepage": "https://sudhir45.github.io/terminal_proj",
-
   "repository": {
     "type": "git",
     "url": "https://github.com/sudhir45/terminal_proj.git"
   },
-
-
   "scripts": {
     "dev": "vite",
     "build": "vite build",
