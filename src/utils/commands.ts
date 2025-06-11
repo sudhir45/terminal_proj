@@ -3,6 +3,7 @@ import themes from '../../themes.json';
 import { history } from '../stores/history';
 import { theme } from '../stores/theme';
 import { printSlowly } from './printSlowly';
+import { currentDirectory, getNodeByPath, changeDirectory, Directory, FileSystemNode } from './filesystem';
 
 const hostname = window.location.hostname;
 
@@ -184,15 +185,75 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
   },
 
   ls: async (args: string[]): Promise<string> => {
-    return `a
-bunch
-of
-fake
-directories`;
+    const path = args[0];
+    let targetNode: FileSystemNode | null = null;
+
+    if (!path || path === '.') {
+      targetNode = currentDirectory;
+    } else if (path === '~') {
+      targetNode = getNodeByPath('~');
+    } else if (path.startsWith('~/')) {
+      targetNode = getNodeByPath(path.substring(2), getNodeByPath('~') as Directory);
+    } else {
+      targetNode = getNodeByPath(path);
+    }
+
+    if (!targetNode) {
+      return `ls: cannot access '${path || '.'}': No such file or directory`;
+    }
+
+    if (targetNode.type === 'file') {
+      return targetNode.name;
+    }
+
+    return targetNode.children.map(child => child.name).join('\n');
   },
-  
+
   cd: async (args: string[]): Promise<string> => {
-    return `unfortunately, i cannot afford more directories.`;
+    const path = args[0] || '~'; // Default to home directory if no path is provided
+
+    if (changeDirectory(path)) {
+      return ''; // Success, no output or some success message like `Current directory: ${currentDirectory.name}`
+    } else {
+      return `cd: no such file or directory: ${path}`;
+    }
+  },
+
+  pwd: async (): Promise<string> => {
+    // Helper function to build the path string
+    const getPathString = (dir: Directory): string => {
+      if (dir === getNodeByPath('~')) return '~'; // Handle root case explicitly
+
+      let pathParts: string[] = [];
+      let current: Directory | null = dir;
+
+      // To avoid infinite loops with incorrect parent finding, limit depth or use better parent tracking
+      let safetyCounter = 0;
+      const MAX_DEPTH = 20;
+
+      while (current && current !== getNodeByPath('~') && safetyCounter < MAX_DEPTH) {
+        pathParts.unshift(current.name);
+        // Find parent of current - this is the inefficient part
+        let parentFound = false;
+        const findParent = (searchDir: Directory, target: Directory): Directory | null => {
+          for (const child of searchDir.children) {
+            if (child === target) return searchDir;
+            if (child.type === 'directory') {
+              const found = findParent(child as Directory, target);
+              if (found) return found;
+            }
+          }
+          return null;
+        }
+        current = findParent(getNodeByPath('~') as Directory, current);
+        parentFound = !!current;
+        safetyCounter++;
+      }
+      if (safetyCounter >= MAX_DEPTH) return "/error/path/too/deep_or_parent_not_found";
+
+      return '~/' + pathParts.join('/');
+    };
+    return getPathString(currentDirectory);
   },
 
   weather: async (args: string[]) => {
