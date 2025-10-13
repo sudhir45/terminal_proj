@@ -4,7 +4,8 @@ import { history as commandOutputHistory, enteredCommandHistory } from '../store
 import { get } from 'svelte/store';
 import { theme } from '../stores/theme';
 import { printSlowly } from './printSlowly';
-import { currentDirectory, getNodeByPath, changeDirectory, Directory, FileSystemNode } from './filesystem';
+import { currentDirectory, getNodeByPath, changeDirectory } from './filesystem';
+import type { Directory, FileSystemNode } from './filesystem';
 import { startGame as startHangmanGame, guessLetter as guessHangmanLetter, getDisplay as getHangmanDisplay, type HangmanState } from './games/hangman';
 
 const startTime = Date.now(); // For uptime calculation
@@ -362,7 +363,9 @@ export const commands: Record<string, (args: string[]) => Promise<string> | stri
     // Gather information
     let osInfo = "Web Browser";
     try {
+      // @ts-ignore - userAgentData is a newer API not in all TypeScript definitions
       if (navigator.userAgentData && navigator.userAgentData.platform) {
+        // @ts-ignore
         osInfo = navigator.userAgentData.platform;
       } else if (navigator.platform) {
         osInfo = navigator.platform;
