@@ -1,20 +1,26 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { resolve } from 'path';
 
-// https://vitejs.dev/config/
-export default defineConfig(({ command, mode }) => {
-  const isProduction = mode === 'production';
-  
-  return {
-    base: isProduction ? '/terminal_proj/' : '/',
-    plugins: [svelte()],
-    server: {
-      port: 3000,
-    },
-    build: {
-      outDir: 'dist',
-      assetsDir: 'assets',
-      emptyOutDir: true,
-    },
-  };
+export default defineConfig({
+  base: '/terminal_proj/',
+  plugins: [svelte()],
+  server: {
+    port: 3000,
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+      }
+    }
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  }
 });
