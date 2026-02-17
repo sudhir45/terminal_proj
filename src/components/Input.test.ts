@@ -7,6 +7,29 @@ import { writable } from 'svelte/store';
 import type { Command } from '../interfaces/command';
 import type { Theme } from '../interfaces/theme';
 
+const mockTheme = vi.hoisted((): Theme => ({
+  name: 'test-theme',
+  black: '#111111',
+  red: '#ff5555',
+  green: '#50fa7b',
+  yellow: '#f1fa8c',
+  blue: '#bd93f9',
+  purple: '#ff79c6',
+  cyan: '#8be9fd',
+  white: '#f8f8f2',
+  brightBlack: '#6272a4',
+  brightRed: '#ff6e6e',
+  brightGreen: '#69ff94',
+  brightYellow: '#ffffa5',
+  brightBlue: '#d6acff',
+  brightPurple: '#ff92df',
+  brightCyan: '#a4ffff',
+  brightWhite: '#ffffff',
+  foreground: '#eeeeee',
+  background: '#111111',
+  cursorColor: '#eeeeee'
+}));
+
 // Mocks for stores and imported objects
 // mockCommands will be defined inside its vi.mock factory
 
@@ -32,7 +55,7 @@ vi.mock('../stores/theme', async () => { // Added async here
   // Import writable directly inside the factory
   const { writable: localWritable } = await import('svelte/store');
   return {
-    theme: localWritable<Theme>({ name: 'default-mock-theme', background: '#111', foreground: '#eee', cursor: '#eee', scrollback: '#111'})
+    theme: localWritable<Theme>(mockTheme)
   };
 });
 
@@ -75,8 +98,7 @@ describe('Input.svelte', () => {
     // Reset stores' state before each test
     historyStoreInstance.set([]);
     enteredCommandHistoryStoreInstance.set([]);
-    // Set a consistent theme for tests, overriding if mock factory's default isn't desired for a test.
-    themeStoreInstance.set({ name: 'test-theme', background: '#000', foreground: '#fff', cursor: '#fff', scrollback: '#000'});
+    themeStoreInstance.set(mockTheme);
 
     addCommandToHistory.mockClear(); // Clear mock call history
   });

@@ -56,7 +56,7 @@ export function guessLetter(letter: string, currentState: HangmanState): Hangman
   }
 
   const newDisplayedWord = generateDisplayedWord(currentState.word, newGuessedLetters);
-  let newStatus = currentState.status;
+  let newStatus: HangmanState['status'] = currentState.status;
 
   if (newDisplayedWord === currentState.word) {
     newStatus = 'won';
@@ -77,16 +77,6 @@ export function guessLetter(letter: string, currentState: HangmanState): Hangman
 }
 
 export function getDisplay(state: HangmanState): string {
-  const hangmanArt = [
-    "  +---+\n  |   |\n      |\n      |\n      |\n      |\n=========", // 0 attempts left (full hangman)
-    "  +---+\n  |   |\n  O   |\n      |\n      |\n      |\n=========", // 1
-    "  +---+\n  |   |\n  O   |\n  |   |\n      |\n      |\n=========", // 2
-    "  +---+\n  |   |\n  O   |\n /|   |\n      |\n      |\n=========", // 3
-    "  +---+\n  |   |\n  O   |\n /|\\  |\n      |\n      |\n=========", // 4
-    "  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========", // 5
-    "  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========", // 6 - this is actually game over state (lost)
-  ];
-
   // The art should represent incorrect guesses made. So, index is maxAttempts - remainingAttempts.
   // However, the art stages are usually 0 to 6 (7 stages).
   // If maxAttempts is 6, then 6 incorrect guesses means 0 remaining attempts.

@@ -1,25 +1,41 @@
 <script lang="ts">
+  import { afterUpdate } from 'svelte';
   import { history } from '../stores/history';
-  import { theme } from '../stores/theme';
   import Ps1 from './Ps1.svelte';
+
+  let historyContainer: HTMLDivElement;
+
+  afterUpdate(() => {
+    if (historyContainer) {
+      historyContainer.scrollTop = historyContainer.scrollHeight;
+    }
+  });
 </script>
 
-{#each $history as { command, outputs }}
-  <div style={`color: ${$theme.foreground}`}>
-    <div class="flex flex-col md:flex-row">
-      <Ps1 />
+<div
+  bind:this={historyContainer}
+  class="terminal-history"
+  role="log"
+  aria-live="polite"
+  aria-relevant="additions text"
+>
+  {#each $history as { command, outputs, isSuggestion }, index (`${index}-${command}`)}
+    <div class={`history-entry ${isSuggestion ? 'history-suggestion' : ''}`}>
+      <div class="flex flex-col md:flex-row">
+        <Ps1 />
 
-      <div class="flex">
-        <p class="visible md:hidden">❯</p>
+        <div class="flex">
+          <p class="visible md:hidden">❯</p>
 
-        <p class="px-2">{command}</p>
+          <p class="px-2 break-all">{command}</p>
+        </div>
       </div>
-    </div>
 
-    {#each outputs as output}
-      <p class="whitespace-pre">
-        {output}
-      </p>
-    {/each}
-  </div>
-{/each}
+      {#each outputs as output}
+        <p class="whitespace-pre-wrap break-words leading-relaxed">
+          {output}
+        </p>
+      {/each}
+    </div>
+  {/each}
+</div>

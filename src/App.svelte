@@ -1,8 +1,38 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import Ps1 from './components/Ps1.svelte';
   import Input from './components/Input.svelte';
   import History from './components/History.svelte';
   import { theme } from './stores/theme';
+  import type { Theme } from './interfaces/theme';
+
+  const variableMappings: Array<[string, keyof Theme]> = [
+    ['--term-bg', 'background'],
+    ['--term-fg', 'foreground'],
+    ['--term-accent', 'green'],
+    ['--term-muted', 'brightBlack'],
+    ['--term-yellow', 'yellow'],
+    ['--term-white', 'white'],
+    ['--term-green', 'green']
+  ];
+
+  $: {
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement;
+      variableMappings.forEach(([cssVariable, themeKey]) => {
+        root.style.setProperty(cssVariable, $theme[themeKey]);
+      });
+    }
+  }
+
+  onDestroy(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    variableMappings.forEach(([cssVariable]) => {
+      document.documentElement.style.removeProperty(cssVariable);
+    });
+  });
 </script>
 
 <svelte:head>
@@ -17,14 +47,17 @@
 </svelte:head>
 
 <main
-  class="h-full border-2 rounded-md p-4 overflow-auto text-xs sm:text-sm md:text-base"
-  style={`background-color: ${$theme.background}; color: ${$theme.foreground}; border-color: ${$theme.green};`}
+  class="terminal-shell h-full border-2 rounded-md p-4 text-xs sm:text-sm md:text-base"
 >
-  <History />
+  <section class="terminal-history-panel" aria-label="Terminal output">
+    <History />
+  </section>
 
-  <div class="flex flex-col md:flex-row">
-    <Ps1 />
+  <div class="terminal-input-bar">
+    <div class="flex flex-col md:flex-row">
+      <Ps1 />
 
-    <Input />
+      <Input />
+    </div>
   </div>
 </main>

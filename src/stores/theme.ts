@@ -2,6 +2,17 @@ import { writable, type Writable } from 'svelte/store';
 import themes from '../../themes.json';
 import type { Theme } from '../interfaces/theme';
 
+const getStorage = (): Storage | null => {
+  try {
+    if (typeof globalThis === 'undefined' || !('localStorage' in globalThis)) {
+      return null;
+    }
+    return globalThis.localStorage;
+  } catch {
+    return null;
+  }
+};
+
 // Default theme fallback
 const defaultTheme: Theme = {
   name: 'Dracula',
@@ -45,7 +56,7 @@ const isValidTheme = (theme: unknown): theme is Theme => {
   const requiredKeys: Array<keyof Theme> = [
     'name', 'black', 'red', 'green', 'yellow', 'blue', 'purple', 'cyan', 'white',
     'brightBlack', 'brightRed', 'brightGreen', 'brightYellow', 'brightBlue',
-    'brightPurple', 'brightCyan', 'brightWhite', 'foreground', 'background'
+    'brightPurple', 'brightCyan', 'brightWhite', 'foreground', 'background', 'cursorColor'
   ];
 
   return requiredKeys.every(key => 
@@ -56,12 +67,13 @@ const isValidTheme = (theme: unknown): theme is Theme => {
 
 // Safe localStorage access with validation
 const getInitialTheme = (): Theme => {
-  if (typeof window === 'undefined' || !window.localStorage) {
+  const storage = getStorage();
+  if (!storage) {
     return defaultColorscheme;
   }
 
   try {
-    const stored = localStorage.getItem('colorscheme');
+    const stored = storage.getItem('colorscheme');
     if (!stored) return defaultColorscheme;
     
     const parsed = JSON.parse(stored);
@@ -107,10 +119,11 @@ export const theme = (() => {
     const store = createThemeStore();
     
     // Subscribe to changes and persist to localStorage
-    if (typeof window !== 'undefined' && window.localStorage) {
+    const storage = getStorage();
+    if (storage) {
       store.subscribe((value) => {
         try {
-          localStorage.setItem('colorscheme', JSON.stringify(value));
+          storage.setItem('colorscheme', JSON.stringify(value));
         } catch (error) {
           console.error('Failed to save theme:', error);
         }

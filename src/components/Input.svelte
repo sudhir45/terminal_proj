@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { afterUpdate, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import { history, enteredCommandHistory, addCommandToHistory } from '../stores/history';
-  import { theme } from '../stores/theme';
   import { commands } from '../utils/commands';
   import { track } from '../utils/tracking';
 
@@ -32,10 +31,6 @@
         $history = [...$history, { command: 'banner', outputs: [output] }];
       }
     }
-  });
-
-  afterUpdate(() => {
-    input.scrollIntoView({ behavior: 'smooth', block: 'end' });
   });
 
   const handleKeyDown = async (event: KeyboardEvent) => {
@@ -162,7 +157,10 @@
     aria-label="Command input"
     class="w-full px-2 bg-transparent outline-none"
     type="text"
-    style={`color: ${$theme.foreground}`}
+    autocomplete="off"
+    autocapitalize="off"
+    autocorrect="off"
+    spellcheck="false"
     bind:value={command}
     on:keydown={handleKeyDown}
     bind:this={input}

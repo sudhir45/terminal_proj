@@ -2,6 +2,7 @@ export interface File {
   type: 'file';
   name: string;
   content?: string;
+  parent?: Directory;
 }
 
 export interface Directory {
@@ -20,10 +21,16 @@ function addParentReferences(node: Directory, parent?: Directory): void {
     if (child.type === 'directory') {
       addParentReferences(child, node);
     } else {
-      // Add parent reference to files as well
-      (child as File & { parent?: Directory }).parent = node;
+      child.parent = node;
     }
   });
+}
+
+function getParentDirectory(node: FileSystemNode): Directory | null {
+  if (node === root) {
+    return null;
+  }
+  return node.parent ?? null;
 }
 
 // Changed 'const' to 'let' for 'root' to allow modification in test setup
@@ -59,7 +66,7 @@ export function getNodeByPath(path: string, startNode: Directory = currentDirect
   }
 
   let effectiveParts: string[];
-  let currentNode: FileSystemNode | Directory; // currentNode can be Directory type for parent access
+  let currentNode: FileSystemNode; // currentNode can be Directory type for parent access
 
   if (path.startsWith('~/')) {
     currentNode = root;
@@ -72,15 +79,9 @@ export function getNodeByPath(path: string, startNode: Directory = currentDirect
   for (const part of effectiveParts) {
     if (part === '..') {
       if (currentNode === root) continue; // Cannot go above root
-      // Use parent reference if current node is a directory and has a parent
-      if (currentNode.type === 'directory' && currentNode.parent) {
-        currentNode = currentNode.parent;
-      } else {
-        // This case should ideally not be reached if all directories have parents (except root)
-        // Or if currentNode is a file (though we check for that next)
-        // Fallback or error if parent reference is missing where expected
-        return null;
-      }
+      const parent = getParentDirectory(currentNode);
+      if (!parent) return null;
+      currentNode = parent;
       continue;
     }
 
@@ -89,7 +90,9 @@ export function getNodeByPath(path: string, startNode: Directory = currentDirect
     }
 
     // currentNode must be a Directory here to have children
-    const nextNode = currentNode.children.find(child => child.name === part);
+    const nextNode: FileSystemNode | undefined = currentNode.children.find(
+      (child: FileSystemNode) => child.name === part
+    );
     if (!nextNode) {
       return null; // Path does not exist
     }
@@ -138,6 +141,7 @@ export function changeDirectory(path: string): boolean {
 
 // Function for testing purposes to reset internal state
 export function __setTestState(newRoot: Directory, newCurrentDirectory: Directory) {
+  addParentReferences(newRoot);
   root = newRoot;
   currentDirectory = newCurrentDirectory;
 }
@@ -162,9 +166,8 @@ export function getAbsolutePath(targetPath: string, baseDirectory: Directory = c
 
   while (nodeForPathBuilding && nodeForPathBuilding !== root && safetyCounter < MAX_DEPTH) {
     pathParts.unshift(nodeForPathBuilding.name);
-    // Explicitly cast to access parent, assuming parent is set for both File and Directory by addParentReferences
-    const parentDir = (nodeForPathBuilding as (File | Directory) & { parent?: Directory }).parent;
-    nodeForPathBuilding = parentDir || null; // Move to parent, or null if no parent (should only be for root)
+    const parentDir: Directory | null = getParentDirectory(nodeForPathBuilding);
+    nodeForPathBuilding = parentDir;
     safetyCounter++;
   }
 

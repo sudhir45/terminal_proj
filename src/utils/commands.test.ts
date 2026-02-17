@@ -45,8 +45,12 @@ if (typeof globalThis.window === 'undefined') {
 } else { // If already defined (e.g. by jsdom via another test file's environment)
   // Augment existing window mock, being careful not to overwrite essential jsdom props
   Object.assign(globalThis.window, baseWindowMock);
-  if (!globalThis.window.document) globalThis.window.document = baseWindowMock.document;
-  if (!globalThis.window.screen) globalThis.window.screen = baseWindowMock.screen;
+  if (!(globalThis.window as unknown as { document?: unknown }).document) {
+    (globalThis.window as unknown as { document?: unknown }).document = baseWindowMock.document;
+  }
+  if (!(globalThis.window as unknown as { screen?: unknown }).screen) {
+    (globalThis.window as unknown as { screen?: unknown }).screen = baseWindowMock.screen;
+  }
 }
 
 
@@ -73,7 +77,7 @@ let globalDateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(initialMockedDateNo
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest';
 import * as filesystemModuleOriginal from './filesystem'; // Keep original type, but we mock it
 // Import 'get' for reading store value.
-import { get } from 'svelte/store';
+import { get, type Writable } from 'svelte/store';
 // actualThemeStore will be imported dynamically in sysinfo's beforeEach
 import type { Theme } from '../interfaces/theme'; // For theme type
 
@@ -219,6 +223,57 @@ vi.mock('./filesystem', async (importOriginal) => {
         }
         return false;
     },
+    getAbsolutePath: (targetPath: string, baseDirectory: filesystemModuleOriginal.Directory = mockFsCurrentDirectory): string => {
+        const resolveNode = (resolvePath: string, startDir: filesystemModuleOriginal.Directory) => {
+            if (resolvePath === '~') return mockFsRoot;
+            if (resolvePath === '' || resolvePath === '.') return startDir;
+            const p = resolvePath.startsWith('~/') ? resolvePath.substring(2).split('/') : resolvePath.split('/');
+            let cNode: filesystemModuleOriginal.FileSystemNode | null = resolvePath.startsWith('~/') ? mockFsRoot : startDir;
+            for (const part of p.filter(Boolean)) {
+                if (!cNode || cNode.type === 'file') return null;
+                if (part === '..') {
+                    if (cNode === mockFsRoot) continue;
+                    const findP = (d: filesystemModuleOriginal.Directory, t: filesystemModuleOriginal.FileSystemNode): filesystemModuleOriginal.Directory | null => {
+                        for (const child of d.children) {
+                            if (child === t) return d;
+                            if (child.type === 'directory') {
+                                const pFound = findP(child as filesystemModuleOriginal.Directory, t);
+                                if (pFound) return pFound;
+                            }
+                        }
+                        return null;
+                    };
+                    cNode = findP(mockFsRoot, cNode);
+                    continue;
+                }
+                cNode = (cNode as filesystemModuleOriginal.Directory).children.find(ch => ch.name === part) || null;
+            }
+            return cNode;
+        };
+
+        const findP = (d: filesystemModuleOriginal.Directory, t: filesystemModuleOriginal.FileSystemNode): filesystemModuleOriginal.Directory | null => {
+            for (const child of d.children) {
+                if (child === t) return d;
+                if (child.type === 'directory') {
+                    const pFound = findP(child as filesystemModuleOriginal.Directory, t);
+                    if (pFound) return pFound;
+                }
+            }
+            return null;
+        };
+
+        const targetNode = resolveNode(targetPath, baseDirectory);
+        if (!targetNode) return `/error/path/not/found/${targetPath.replace(/\//g, '_')}`;
+        if (targetNode === mockFsRoot) return '~';
+
+        const pathParts: string[] = [];
+        let currentNode: filesystemModuleOriginal.FileSystemNode | null = targetNode;
+        while (currentNode && currentNode !== mockFsRoot) {
+            pathParts.unshift(currentNode.name);
+            currentNode = findP(mockFsRoot, currentNode);
+        }
+        return `~/${pathParts.join('/')}`;
+    }
   };
 });
 
@@ -497,12 +552,12 @@ describe('Utility Commands (ls, cd, pwd)', () => {
   });
 
   describe('history', () => {
-    let enteredCommandHistoryStore: any; // Renamed to avoid conflict if tests import actual store
+    let enteredCommandHistoryStore: Writable<string[]>;
 
     beforeEach(async () => {
       localStorageMock.removeItem('enteredCommandHistory');
       const storesModule = await import('../stores/history'); // Dynamically import for fresh state
-      enteredCommandHistoryStore = storesModule.enteredCommandHistory;
+      enteredCommandHistoryStore = storesModule.enteredCommandHistory as Writable<string[]>;
       enteredCommandHistoryStore.set([]);
     });
 
@@ -574,19 +629,34 @@ describe('Utility Commands (ls, cd, pwd)', () => {
   describe('sysinfo', () => {
     // globalDateNowSpy is already set up. We will manipulate its mockReturnValue in tests.
     // initialMockedDateNow is the timestamp commands.ts's startTime will get.
-    let actualThemeStore: any; // To hold dynamically imported theme store
+    let actualThemeStore: Writable<Theme>; // To hold dynamically imported theme store
 
     beforeEach(async () => { // Made async for dynamic import
       const themeModule = await import('../stores/theme');
-      actualThemeStore = themeModule.theme;
+      actualThemeStore = themeModule.theme as Writable<Theme>;
 
       actualThemeStore.set({
         name: 'test-theme-sysinfo',
+        black: '#21222c',
+        red: '#ff5555',
+        green: '#50fa7b',
+        yellow: '#f1fa8c',
+        blue: '#bd93f9',
+        purple: '#ff79c6',
+        cyan: '#8be9fd',
+        white: '#f8f8f2',
+        brightBlack: '#6272a4',
+        brightRed: '#ff6e6e',
+        brightGreen: '#69ff94',
+        brightYellow: '#ffffa5',
+        brightBlue: '#d6acff',
+        brightPurple: '#ff92df',
+        brightCyan: '#a4ffff',
+        brightWhite: '#ffffff',
         foreground: '#fff',
         background: '#000',
-        cursor: '#fff',
-        scrollback: '#000'
-      } as Theme);
+        cursorColor: '#fff'
+      });
 
       // Specific window/navigator values for sysinfo tests are set in the global mocks at the top.
       // If a test needs to deviate, it can modify globalThis.window/navigator properties here

@@ -1,11 +1,23 @@
 import { writable } from 'svelte/store';
 import type { Command } from '../interfaces/command';
 
+const getStorage = (): Storage | null => {
+  try {
+    if (typeof globalThis === 'undefined' || !('localStorage' in globalThis)) {
+      return null;
+    }
+    return globalThis.localStorage;
+  } catch {
+    return null;
+  }
+};
+
 // Safe localStorage access helper
 const getFromLocalStorage = <T>(key: string, defaultValue: T): T => {
-  if (typeof window !== 'undefined' && window.localStorage) {
+  const storage = getStorage();
+  if (storage) {
     try {
-      const stored = localStorage.getItem(key);
+      const stored = storage.getItem(key);
       if (stored) {
         return JSON.parse(stored);
       }
@@ -16,10 +28,11 @@ const getFromLocalStorage = <T>(key: string, defaultValue: T): T => {
   return defaultValue;
 };
 
-const saveToLocalStorage = (key: string, value: any): void => {
-  if (typeof window !== 'undefined' && window.localStorage) {
+const saveToLocalStorage = (key: string, value: unknown): void => {
+  const storage = getStorage();
+  if (storage) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      storage.setItem(key, JSON.stringify(value));
     } catch (e) {
       console.error(`Error saving ${key} to localStorage:`, e);
     }
